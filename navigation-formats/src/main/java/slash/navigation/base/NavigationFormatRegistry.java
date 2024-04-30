@@ -30,6 +30,7 @@ import slash.navigation.copilot.CoPilot6Format;
 import slash.navigation.copilot.CoPilot7Format;
 import slash.navigation.copilot.CoPilot8Format;
 import slash.navigation.copilot.CoPilot9Format;
+import slash.navigation.copilot.CoPilot10Format;
 import slash.navigation.csv.CsvCommaFormat;
 import slash.navigation.csv.CsvSemicolonFormat;
 import slash.navigation.excel.MicrosoftExcel2008Format;
@@ -125,6 +126,7 @@ public class NavigationFormatRegistry {
         addFormat(CoPilot7Format.class);
         addFormat(CoPilot9Format.class);
         addFormat(CoPilot8Format.class);
+        addFormat(CoPilot10Format.class);
         addFormat(CoPilot6Format.class);
         addFormat(Route66Format.class);
         addFormat(KompassFormat.class);
