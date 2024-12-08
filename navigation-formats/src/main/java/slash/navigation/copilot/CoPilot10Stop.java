@@ -4,6 +4,9 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import slash.common.type.CompactCalendar;
 import slash.navigation.base.BaseNavigationPosition;
+import slash.navigation.common.NavigationPosition;
+
+import java.util.List;
 
 // Properties introduced by getters of parent
 @JsonIgnoreProperties({"time", "elevation", "description", "longitude", "latitude", "speed"})
@@ -29,6 +32,21 @@ public class CoPilot10Stop extends BaseNavigationPosition {
     public StopInfo stopInfo;
     @JsonProperty("Warnings")
     public Integer warnings;
+
+    public static <P extends NavigationPosition> List<CoPilot10Stop> asFormat(CoPilot10Format format, List<P> stops) {
+        if (stops == null || stops.isEmpty()) {
+            return null;
+        }
+
+        if (stops.get(0) instanceof CoPilot10Stop) {
+            return (List<CoPilot10Stop>) stops;
+        }
+
+        for (P stop : stops) {
+
+        }
+        return null;
+    }
 
     public static class StopInfo{
         @JsonProperty("Name")
@@ -114,6 +132,7 @@ public class CoPilot10Stop extends BaseNavigationPosition {
     }
 
     public CoPilot10Stop(Double longitude, Double latitude, Double elevation, Double speed, CompactCalendar time, String description) {
+        stopInfo = new StopInfo();
         setLongitude(longitude);
         setLatitude(latitude);
         setDescription(description);
@@ -121,21 +140,33 @@ public class CoPilot10Stop extends BaseNavigationPosition {
 
     @Override
     public Double getLongitude() {
-        return stopInfo.longitude / INTEGER_FACTOR;
+        if (stopInfo != null) {
+            return stopInfo.longitude / INTEGER_FACTOR;
+        }
+        return null;
     }
 
     @Override
     public void setLongitude(Double longitude) {
+        if (stopInfo == null) {
+            stopInfo = new StopInfo();
+        }
         stopInfo.longitude = (int) (longitude * INTEGER_FACTOR);
     }
 
     @Override
     public Double getLatitude() {
-        return stopInfo.latitude / INTEGER_FACTOR;
+        if (stopInfo != null) {
+            return stopInfo.latitude / INTEGER_FACTOR;
+        }
+        return null;
     }
 
     @Override
     public void setLatitude(Double latitude) {
+        if (stopInfo == null) {
+            stopInfo = new StopInfo();
+        }
         stopInfo.latitude = (int) (latitude * INTEGER_FACTOR);
     }
 
@@ -171,6 +202,9 @@ public class CoPilot10Stop extends BaseNavigationPosition {
 
     @Override
     public String getDescription() {
+        if (stopInfo == null) {
+            return null;
+        }
         if (stopInfo.name != null) {
             return stopInfo.name;
         }
@@ -181,6 +215,9 @@ public class CoPilot10Stop extends BaseNavigationPosition {
 
     @Override
     public void setDescription(String description) {
+        if (stopInfo == null) {
+            stopInfo = new StopInfo();
+        }
         stopInfo.name = description;
     }
 

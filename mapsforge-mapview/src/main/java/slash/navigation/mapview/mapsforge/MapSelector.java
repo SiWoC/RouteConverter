@@ -221,7 +221,7 @@ public class MapSelector {
         panel1.add(comboBoxZoom, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         labelCopyrightText = new JLabel();
         labelCopyrightText.setFocusable(false);
-        Font labelCopyrightTextFont = this.$$$getFont$$$(null, -1, 7, labelCopyrightText.getFont());
+        Font labelCopyrightTextFont = this.$$$getFont$$$1(null, -1, 7, labelCopyrightText.getFont());
         if (labelCopyrightTextFont != null) labelCopyrightText.setFont(labelCopyrightTextFont);
         labelCopyrightText.setText("");
         panel1.add(labelCopyrightText, new GridConstraints(0, 6, 1, 1, GridConstraints.ANCHOR_EAST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
@@ -233,7 +233,7 @@ public class MapSelector {
     /**
      * @noinspection ALL
      */
-    private Font $$$getFont$$$(String fontName, int style, int size, Font currentFont) {
+    private Font $$$getFont$$$1(String fontName, int style, int size, Font currentFont) {
         if (currentFont == null) return null;
         String resultName;
         if (fontName == null) {

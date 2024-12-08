@@ -2,7 +2,6 @@ package slash.navigation.copilot;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.io.FilenameUtils;
 import slash.common.type.CompactCalendar;
 import slash.navigation.base.*;
@@ -16,7 +15,6 @@ import slash.navigation.excel.ExcelRoute;
 import slash.navigation.gopal.GoPalRoute;
 import slash.navigation.gopal.GoPalRouteFormat;
 import slash.navigation.gpx.GpxFormat;
-import slash.navigation.gpx.GpxPosition;
 import slash.navigation.gpx.GpxRoute;
 import slash.navigation.itn.TomTomRoute;
 import slash.navigation.itn.TomTomRouteFormat;
@@ -30,14 +28,8 @@ import slash.navigation.photo.PhotoFormat;
 import slash.navigation.tcx.TcxFormat;
 import slash.navigation.tcx.TcxRoute;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
-
-import static slash.common.io.Transfer.UTF8_ENCODING;
 
 // Properties introduced by getters of parent
 @JsonIgnoreProperties({"format", "characteristics", "name", "positionCount", "positions", "description", "time", "distance"})
@@ -53,25 +45,19 @@ public class CoPilot10Root extends BaseRoute<CoPilot10Stop, CoPilot10Format> {
     @JsonProperty("Trip")
     public CoPilot10Trip trip;
 
-    // NoParam Constuctor for JSON-mapper
+    // NoParam Constructor for JSON-mapper
     public CoPilot10Root(){
         super(new CoPilot10Format(), RouteCharacteristics.Route);
     };
 
-    public CoPilot10Root(CoPilot10Format format, RouteCharacteristics characteristics, String name, List<CoPilot10Stop> stops) {
+    public <P extends NavigationPosition> CoPilot10Root(CoPilot10Format format, RouteCharacteristics characteristics, String name, List<P> positions) {
         super(format, characteristics);
         this.softwareVersion = SOFTWARE_VERSION;
         this.dataVersion = DATA_VERSION;
         this.trip = new CoPilot10Trip();
         this.trip.name = name;
-        this.trip.stops = stops;
+        this.trip.stops = createPositions(positions);
     }
-
-    /*
-    public CoPilot10Root(RouteCharacteristics characteristics, String name, List<CoPilot10Stop> stops) {
-        return new CoPilot10Root(new CoPilot10Format(), characteristics, name, stops);
-    }
-    */
 
     @Override
     public String getName() {
@@ -122,6 +108,14 @@ public class CoPilot10Root extends BaseRoute<CoPilot10Stop, CoPilot10Format> {
             this.trip.stops = new ArrayList<CoPilot10Stop>();
         }
         this.trip.stops.add(index,position);
+    }
+
+    public <P extends NavigationPosition> List<CoPilot10Stop> createPositions(List<P> positions) {
+        ArrayList<CoPilot10Stop> stops = new ArrayList<>();
+        for (P position : positions) {
+            stops.add(new CoPilot10Stop(position.getLongitude(), position.getLatitude(), position.getElevation(), position.getSpeed(), position.getTime(), position.getDescription()));
+        }
+        return stops;
     }
 
     @Override
@@ -189,9 +183,13 @@ public class CoPilot10Root extends BaseRoute<CoPilot10Stop, CoPilot10Format> {
         return null;
     }
 
+    // dynamic invoke "as{formatName}" in NavigationFormatConverter
     public CoPilot10Root asCoPilot10Format() {
-        List<CoPilot10Stop> stops = new ArrayList<>(getPositions());
-        return new CoPilot10Root(getFormat(), getCharacteristics(), getName(), stops);
+        return asCoPilot10Format(this);
+    }
+
+    public CoPilot10Root asCoPilot10Format(BaseRoute route) {
+        return new CoPilot10Root(getFormat(), getCharacteristics(), getName(), route.getPositions());
     }
 
 }

@@ -53,6 +53,11 @@ public class CoPilot10Format extends TextNavigationFormat<CoPilot10Root> {
         return ".trp";
     }
 
+    public boolean isSupportsWriting() {
+        // this format class supports writing, but not all conversions have been written
+        return false;
+    }
+
     @Override
     public int getMaximumPositionCount() {
         return UNLIMITED_MAXIMUM_POSITION_COUNT;
@@ -70,7 +75,7 @@ public class CoPilot10Format extends TextNavigationFormat<CoPilot10Root> {
 
     @Override
     public <P extends NavigationPosition> CoPilot10Root createRoute(RouteCharacteristics characteristics, String name, List<P> positions) {
-        return new CoPilot10Root(this, characteristics, name, (List<CoPilot10Stop>) positions);
+        return new CoPilot10Root(this, characteristics, name, positions);
     }
 
 }
