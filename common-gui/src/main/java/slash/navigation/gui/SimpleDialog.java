@@ -85,11 +85,11 @@ public abstract class SimpleDialog extends JDialog {
     }
 
     private int getPreferenceHeight() {
-        return crop("preferencesHeight", preferences.getInt(getName() + "-" + HEIGHT_PREFERENCE, -1), 0, MAX_VALUE);
+        return -1;
     }
 
     private int getPreferenceWidth() {
-        return crop("preferenceWidth", preferences.getInt(getName() + "-" + WIDTH_PREFERENCE, -1), 0, MAX_VALUE);
+return -1;
     }
 
     private void putPreferencesLocation() {
@@ -114,9 +114,17 @@ public abstract class SimpleDialog extends JDialog {
         log.fine("Storing dialog " + getName() + " size as " + getSize());
     }
 
+    private boolean disposed = false;
+
     public void dispose() {
         putPreferencesLocation();
         putPreferencesSize();
         super.dispose();
+        disposed = true;
+    }
+
+    public void setVisible(boolean visible) {
+        if(disposed) return;
+        super.setVisible(visible);
     }
 }

@@ -66,7 +66,6 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.text.MessageFormat;
 import java.util.List;
 import java.util.*;
@@ -328,10 +327,7 @@ public abstract class RouteConverter extends SingleFrameApplication {
                 getDownloadManager().executeDownload("RouteConverter Map Servers", getApiUrl() + V1 + "mapservers/" + FORMAT_XML, Copy, mapServers, () -> {
 
                     File overlayServers = new File(getApplicationDirectory("tileservers"), "overlayservers.xml");
-                    getDownloadManager().executeDownload("RouteConverter Overlay Servers", getApiUrl() + V1 + "overlayservers/" + FORMAT_XML, Copy, overlayServers, () -> {
-
-                        getTileServerMapManager().scanTileServers();
-                    });
+                    getDownloadManager().executeDownload("RouteConverter Overlay Servers", getApiUrl() + V1 + "overlayservers/" + FORMAT_XML, Copy, overlayServers, () -> getTileServerMapManager().scanTileServers());
                 });
             } catch (Exception e) {
                 log.warning("Could not download tile servers: " + e);
@@ -488,18 +484,37 @@ public abstract class RouteConverter extends SingleFrameApplication {
         // important: return the current values since the Credentials is passed to the RemoteCatalog
         return new Credentials() {
             public String getUserName() {
-                return preferences.get(USERNAME_PREFERENCE, "");
+                return preferences.get(USERNAME_PREFERENCE, null);
             }
 
             public char[] getPassword() {
-                return new String(preferences.getByteArray(PASSWORD_PREFERENCE, new byte[0]), UTF_8).toCharArray();
+                byte[] byteArray = preferences.getByteArray(PASSWORD_PREFERENCE, null);
+                return byteArray != null ? new String(byteArray, UTF_8).toCharArray() : null;
             }
         };
     }
 
-    public void setUserNamePreference(String userNamePreference, String passwordPreference) {
+    public String getUserNamePreference() {
+        return preferences.get(USERNAME_PREFERENCE, null);
+    }
+
+    private void initializeLoginAction() {
+        boolean enableLogin = getUserNamePreference() == null;
+        getContext().getActionManager().enable("login", enableLogin);
+        getContext().getActionManager().enable("logout", !enableLogin);
+    }
+
+    public void setLogin(String userNamePreference, String passwordPreference) {
         preferences.put(USERNAME_PREFERENCE, userNamePreference);
         preferences.putByteArray(PASSWORD_PREFERENCE, passwordPreference.getBytes());
+        initializeLoginAction();
+        updateChecker.check();
+    }
+
+    public void removeLogin() {
+        preferences.remove(USERNAME_PREFERENCE);
+        preferences.remove(PASSWORD_PREFERENCE);
+        initializeLoginAction();
     }
 
     public File getUploadRoutePreference() {
@@ -1015,7 +1030,8 @@ public abstract class RouteConverter extends SingleFrameApplication {
                     PanelInTab panelInTab;
                     try {
                         panelInTab = panelInTabClass.getDeclaredConstructor().newInstance();
-                    } catch (InstantiationException | InvocationTargetException | IllegalAccessException | NoSuchMethodException e) {
+                    } catch (InstantiationException | InvocationTargetException | IllegalAccessException |
+                             NoSuchMethodException e) {
                         throw new RuntimeException(e);
                     }
                     panel.add(panelInTab.getRootComponent());
@@ -1172,7 +1188,7 @@ public abstract class RouteConverter extends SingleFrameApplication {
         });
         tileServerMapManager = new TileServerMapManager(getTileServersDirectory());
         routingServiceFacade.addRoutingServiceFacadeListener(new RoutingServiceFacadeNotifier());
-     }
+    }
 
     protected void initializeActions() {
         ActionManager actionManager = getContext().getActionManager();
@@ -1189,12 +1205,14 @@ public abstract class RouteConverter extends SingleFrameApplication {
         actionManager.registerGlobal("delete");
         actionManager.register("insert-positions", new InsertPositionsAction());
         actionManager.register("delete-positions", new DeletePositionsAction());
-        actionManager.register("revert-positions", new RevertPositionListAction());
+        actionManager.register("revert-all-positionlist", new RevertPositionListAction());
         actionManager.register("convert-route-to-track", new ConvertRouteToTrackAction());
         actionManager.register("convert-track-to-route", new ConvertTrackToRouteAction());
         actionManager.register("show-downloads", new ShowDownloadsAction());
         actionManager.register("show-options", new ShowOptionsAction());
         actionManager.register("login", new LoginAction());
+        actionManager.register("logout", new LogoutAction());
+        initializeLoginAction();
         actionManager.register("complete-flight-plan", new CompleteFlightPlanAction());
         actionManager.register("help-topics", new HelpTopicsAction());
         actionManager.register("check-for-update", new CheckForUpdateAction(updateChecker));
@@ -1256,9 +1274,9 @@ public abstract class RouteConverter extends SingleFrameApplication {
                     getBundle().getString("datasource-initialization-error"), getLocalizedMessage(e)), null);
         }
 
+        initializeRoutingServices();
         initializeElevationServices();
         initializeGeocodingServices();
-        initializeRoutingServices();
 
         // make sure the queue is loaded before any components uses it
         try {
@@ -1310,7 +1328,9 @@ public abstract class RouteConverter extends SingleFrameApplication {
     }
 
     protected abstract void scanLocalMapsAndThemes();
+
     protected abstract void installBackgroundMap();
+
     protected abstract void scanRemoteMapsAndThemes();
 
     private void scanForFilesMissingInQueue() {
@@ -1373,5 +1393,4 @@ public abstract class RouteConverter extends SingleFrameApplication {
             profileView.print();
         }
     }
-
 }

@@ -21,10 +21,13 @@
 package slash.navigation.converter.gui.actions;
 
 import slash.navigation.converter.gui.RouteConverter;
+import slash.navigation.converter.gui.models.PositionsModel;
 import slash.navigation.gui.actions.FrameAction;
 
+import javax.swing.*;
+
 /**
- * Reverts positions of the position list
+ * {@link Action} that reverts all rows of a {@link PositionsModel}.
  *
  * @author Christian Pesch
  */

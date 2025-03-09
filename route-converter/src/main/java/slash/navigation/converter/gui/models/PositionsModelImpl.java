@@ -41,7 +41,6 @@ import java.text.ParseException;
 import java.util.*;
 import java.util.logging.Logger;
 
-import static java.lang.Integer.MAX_VALUE;
 import static java.lang.String.format;
 import static java.util.Calendar.*;
 import static java.util.Collections.singletonList;
@@ -399,16 +398,10 @@ public class PositionsModelImpl extends AbstractTableModel implements PositionsM
         fireTableRowsInserted(rowIndex, rowIndex - 1 + positions.size());
     }
 
-    public int[] createRowIndices(int from, int to) {
-        int[] rows = new int[to - from];
-        int count = 0;
-        for (int i = to - 1; i >= from; i--)
-            rows[count++] = i;
-        return rows;
-    }
-
     public void remove(int firstIndex, int lastIndex) {
-        remove(createRowIndices(firstIndex, lastIndex));
+        int[] range = Range.asRange(firstIndex, lastIndex - 1);
+        int[] rows = Range.revert(range);
+        remove(rows);
     }
 
     public void remove(int[] rowIndices) {
@@ -436,43 +429,49 @@ public class PositionsModelImpl extends AbstractTableModel implements PositionsM
     public void sort(Comparator<NavigationPosition> comparator) {
         getRoute().sort(comparator);
         // since fireTableDataChanged(); is ignored in FormatAndRoutesModel#setModified(true) logic
-        fireTableRowsUpdated(0, MAX_VALUE);
+        fireTableModified();
     }
 
     @SuppressWarnings("unchecked")
     public void order(List<NavigationPosition> positions) {
         getRoute().order(positions);
         // since fireTableDataChanged(); is ignored in FormatAndRoutesModel#setModified(true) logic
-        fireTableRowsUpdated(0, MAX_VALUE);
+        fireTableModified();
     }
 
     public void revert() {
         getRoute().revert();
         // since fireTableDataChanged(); is ignored in FormatAndRoutesModel#setModified(true) logic
-        fireTableRowsUpdated(0, MAX_VALUE);
+        fireTableModified();
+    }
+
+    public void revert(int[] rowIndices) {
+        Arrays.sort(rowIndices);
+        getRoute().revert(rowIndices);
+        fireTableRowsUpdated(rowIndices[0], rowIndices[rowIndices.length - 1]);
     }
 
     public void top(int[] rowIndices) {
         Arrays.sort(rowIndices);
-
         for (int i = 0; i < rowIndices.length; i++) {
             getRoute().top(rowIndices[i], i);
         }
         fireTableRowsUpdated(0, rowIndices[rowIndices.length - 1]);
     }
 
-    public void topDown(int[] rows) {
-        int[] reverted = Range.revert(rows);
-
-        for (int i = 0; i < reverted.length; i++) {
-            getRoute().move(reverted.length - i - 1, reverted[i]);
+    public void topDown(int[] rowIndices) {
+        int[] reverted = Range.revert(rowIndices);
+        for (int row = 0; row < reverted.length; row++) {
+            // move largest index with largest distance to top first
+            for (int i = reverted.length - row - 1; i < reverted[row]; i++) {
+                getRoute().move(i, i + 1);
+            }
         }
-        fireTableRowsUpdated(0, reverted[0]);
+        fireTableRowsUpdated(0, rowIndices[rowIndices.length - 1]);
     }
 
     public void up(int[] rowIndices, int delta) {
         Arrays.sort(rowIndices);
-
         for (int row : rowIndices) {
             // protect against IndexArrayOutOfBoundsException
             if(row - delta < 0)
@@ -485,7 +484,6 @@ public class PositionsModelImpl extends AbstractTableModel implements PositionsM
 
     public void down(int[] rowIndices, int delta) {
         int[] reverted = Range.revert(rowIndices);
-
         for (int row : reverted) {
             // protect against IndexArrayOutOfBoundsException
             if(row + delta >= getRowCount())
@@ -498,7 +496,6 @@ public class PositionsModelImpl extends AbstractTableModel implements PositionsM
 
     public void bottom(int[] rowIndices) {
         int[] reverted = Range.revert(rowIndices);
-
         for (int i = 0; i < reverted.length; i++) {
             getRoute().bottom(reverted[i], i);
             fireTableRowsUpdated(reverted[i], getRowCount() - 1 - i);
@@ -507,9 +504,11 @@ public class PositionsModelImpl extends AbstractTableModel implements PositionsM
 
     public void bottomUp(int[] rows) {
         Arrays.sort(rows);
-
-        for (int i = 0; i < rows.length; i++) {
-            getRoute().move(getRowCount() - rows.length + i, rows[i]);
+        for (int row = 0; row < rows.length; row++) {
+            // move smallest index with largest distance to bottom first
+            for (int i = getRowCount() - rows.length + row; i > rows[row]; i--) {
+                getRoute().move(i, i - 1);
+            }
         }
         fireTableRowsUpdated(rows[0], getRowCount() - 1);
     }
@@ -522,8 +521,12 @@ public class PositionsModelImpl extends AbstractTableModel implements PositionsM
         this.currentEvent = null;
     }
 
-    public boolean isContinousRange() {
+    public boolean isContinousRangeOperation() {
         return currentEvent instanceof ContinousRangeTableModelEvent;
+    }
+
+    public boolean isFullTableModification() {
+        return currentEvent instanceof FullTableModicationTableModelEvent;
     }
 
     public void fireTableRowsUpdated(int firstIndex, int lastIndex, int columnIndex) {
@@ -538,8 +541,18 @@ public class PositionsModelImpl extends AbstractTableModel implements PositionsM
         fireTableChanged(new ContinousRangeTableModelEvent(this, firstRow, lastRow, ALL_COLUMNS, DELETE));
     }
 
+    public void fireTableModified() {
+        fireTableChanged(new FullTableModicationTableModelEvent(this, 0, Integer.MAX_VALUE, ALL_COLUMNS, UPDATE));
+    }
+
     private static class ContinousRangeTableModelEvent extends TableModelEvent {
         ContinousRangeTableModelEvent(TableModel source, int firstRow, int lastRow, int column, int type) {
+            super(source, firstRow, lastRow, column, type);
+        }
+    }
+
+    private static class FullTableModicationTableModelEvent extends TableModelEvent {
+        FullTableModicationTableModelEvent(TableModel source, int firstRow, int lastRow, int column, int type) {
             super(source, firstRow, lastRow, column, type);
         }
     }

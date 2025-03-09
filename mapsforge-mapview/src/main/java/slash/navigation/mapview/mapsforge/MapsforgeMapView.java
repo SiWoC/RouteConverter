@@ -43,6 +43,10 @@ import org.mapsforge.map.model.IMapViewPosition;
 import org.mapsforge.map.model.MapViewDimension;
 import org.mapsforge.map.model.common.Observer;
 import org.mapsforge.map.reader.MapFile;
+import org.mapsforge.map.rendertheme.XmlRenderTheme;
+import org.mapsforge.map.rendertheme.XmlRenderThemeMenuCallback;
+import org.mapsforge.map.rendertheme.XmlRenderThemeStyleLayer;
+import org.mapsforge.map.rendertheme.XmlRenderThemeStyleMenu;
 import org.mapsforge.map.scalebar.DefaultMapScaleBar;
 import org.mapsforge.map.scalebar.ImperialUnitAdapter;
 import org.mapsforge.map.scalebar.MetricUnitAdapter;
@@ -63,6 +67,7 @@ import slash.navigation.gui.Application;
 import slash.navigation.gui.actions.ActionManager;
 import slash.navigation.gui.actions.FrameAction;
 import slash.navigation.maps.mapsforge.LocalMap;
+import slash.navigation.maps.mapsforge.LocalTheme;
 import slash.navigation.maps.mapsforge.MapsforgeMapManager;
 import slash.navigation.maps.mapsforge.impl.MBTilesFileMap;
 import slash.navigation.maps.mapsforge.impl.MapsforgeFileMap;
@@ -166,6 +171,7 @@ public class MapsforgeMapView extends BaseMapView {
     private final RepaintPositionListListener repaintPositionListListener = new RepaintPositionListListener();
     private final DisplayedMapListener displayedMapListener = new DisplayedMapListener();
     private final AppliedThemeListener appliedThemeListener = new AppliedThemeListener();
+    private final AppliedThemeStyleListener appliedThemeStyleListener = new AppliedThemeStyleListener();
     private final AppliedOverlayListener appliedOverlayListener = new AppliedOverlayListener();
     private final ShadedHillsListener shadedHillsListener = new ShadedHillsListener();
 
@@ -418,6 +424,7 @@ public class MapsforgeMapView extends BaseMapView {
 
         getMapManager().getDisplayedMapModel().addChangeListener(displayedMapListener);
         getMapManager().getAppliedThemeModel().addChangeListener(appliedThemeListener);
+        preferencesModel.getThemeStyleModel().getAppliedStyleModel().addChangeListener(appliedThemeStyleListener);
         mapViewCallback.getTileServerMapManager().getAppliedOverlaysModel().addTableModelListener(appliedOverlayListener);
     }
 
@@ -442,8 +449,6 @@ public class MapsforgeMapView extends BaseMapView {
         Parameters.MAXIMUM_BUFFER_SIZE = preferences.getInt(READ_BUFFER_SIZE_PREFERENCE, 16000000);
         // No square frame buffer since the device orientation hardly changes
         Parameters.SQUARE_FRAME_BUFFER = false;
-        // Use improved HA3 frame buffer
-        Parameters.FRAME_BUFFER_HA3 = true;
 
         float deviceScaleFactor = getDeviceScaleFactor();
         DisplayModel.setDeviceScaleFactor(deviceScaleFactor);
@@ -505,11 +510,92 @@ public class MapsforgeMapView extends BaseMapView {
     }
 
     private TileRendererLayer createTileRendererLayer(MapFile mapFile, String cacheId) {
-        TileRendererLayer tileRendererLayer = new TileRendererLayer(createTileCache(cacheId), mapFile,
+        return new TileRendererLayer(createTileCache(cacheId), mapFile,
                 mapView.getModel().mapViewPosition, true, true, true,
                 GRAPHIC_FACTORY, hillsRenderConfig);
-        tileRendererLayer.setXmlRenderTheme(getMapManager().getAppliedThemeModel().getItem().getXmlRenderTheme());
+    }
+
+    private static final String THEME_STYLE_ALL = "theme-style-all";
+    private MenuCallback menuCallback = new MenuCallback();
+
+    private TileRendererLayer createMapLayer(MapFile mapFile, String cacheId) {
+        TileRendererLayer tileRendererLayer = createTileRendererLayer(mapFile, cacheId);
+
+        LocalTheme theme = getMapManager().getAppliedThemeModel().getItem();
+        preferencesModel.getThemeStyleModel().setCurrentTheme(theme.getDescription());
+        preferencesModel.getThemeStyleModel().getAvailableStylesModel().clear();
+
+        XmlRenderTheme xmlRenderTheme = theme.getXmlRenderTheme();
+        xmlRenderTheme.setMenuCallback(menuCallback);
+        tileRendererLayer.setXmlRenderTheme(theme.getXmlRenderTheme());
         return tileRendererLayer;
+    }
+
+    private class MenuCallback implements XmlRenderThemeMenuCallback {
+        public Set<String> getCategories(XmlRenderThemeStyleMenu renderThemeStyleMenu) {
+            Map<String, XmlRenderThemeStyleLayer> layers = renderThemeStyleMenu.getLayers();
+            preferencesModel.getThemeStyleModel().setThemeStyles(
+                    layers.values().stream().
+                            filter(layer -> !layer.getOverlays().isEmpty()).
+                            map(layer -> asThemeStyle(renderThemeStyleMenu, layer)).
+                            toList()
+            );
+
+            String stylePreference = preferencesModel.getThemeStyleModel().getAppliedStyleModel().getItem().getUrl();
+            String style = stylePreference == null ?
+                    renderThemeStyleMenu.getDefaultValue() : stylePreference;
+
+            XmlRenderThemeStyleLayer renderThemeStyleLayer = renderThemeStyleMenu.getLayer(style);
+            if (THEME_STYLE_ALL.equals(stylePreference)) {
+                return null;
+
+            } else if (renderThemeStyleLayer == null) {
+                log.warning("Invalid style \"" + style + "\", showing all styles");
+                return null;
+            }
+
+            Set<String> categories = renderThemeStyleLayer.getCategories();
+            for (XmlRenderThemeStyleLayer overlay : renderThemeStyleLayer.getOverlays()) {
+                if (overlay.isEnabled()) {
+                    categories.addAll(overlay.getCategories());
+                }
+            }
+
+                /*
+                log.info("Menu id: " + renderThemeStyleMenu.getId() +
+                        " default language: " + renderThemeStyleMenu.getDefaultLanguage() +
+                        " default value: " + renderThemeStyleMenu.getDefaultValue());
+                Map<String, XmlRenderThemeStyleLayer> layers = renderThemeStyleMenu.getLayers();
+                for (Map.Entry<String, XmlRenderThemeStyleLayer> entry : layers.entrySet()) {
+                    XmlRenderThemeStyleLayer layer = entry.getValue();
+                    log.info("Layer: " + entry.getKey() +
+                            " enabled: " + layer.isEnabled() +
+                            " visible: " + layer.isVisible() +
+                            " titles: " + layer.getTitles() +
+                            " categories: " + layer.getCategories() +
+                            " overlays: " + layer.getOverlays());
+                }
+
+                 */
+            return !categories.isEmpty() ? categories : null;
+        }
+
+        private static ThemeStyle asThemeStyle(XmlRenderThemeStyleMenu renderThemeStyleMenu, XmlRenderThemeStyleLayer layer) {
+            return new ThemeStyle() {
+                public String getDescription() {
+                    String title = layer.getTitle(Locale.getDefault().getLanguage());
+                    return title != null ? title : layer.getTitle(renderThemeStyleMenu.getDefaultLanguage());
+                }
+
+                public String getUrl() {
+                    return layer.getId();
+                }
+
+                public Set<String> getCategories() {
+                    return layer.getCategories();
+                }
+            };
+        }
     }
 
     private TileCache createTileCache(String cacheId) {
@@ -521,7 +607,7 @@ public class MapsforgeMapView extends BaseMapView {
 
     private Layer createLayerForMap(LocalMap map) {
         return switch (map.getType()) {
-            case Mapsforge -> createTileRendererLayer(((MapsforgeFileMap) map).getMapFile(), map.getUrl());
+            case Mapsforge -> createMapLayer(((MapsforgeFileMap) map).getMapFile(), map.getUrl());
             case MBTiles -> new TileMBTilesLayer(createTileCache(map.getUrl()), mapView.getModel().mapViewPosition, true, ((MBTilesFileMap) map).getMBTilesFile(), GRAPHIC_FACTORY);
             case Download -> new TileDownloadLayer(createTileCache(map.getUrl()), mapView.getModel().mapViewPosition, ((TileDownloadMap) map).getTileSource(), GRAPHIC_FACTORY);
         };
@@ -650,10 +736,6 @@ public class MapsforgeMapView extends BaseMapView {
         };
     }
 
-    public boolean isInitialized() {
-        return true;
-    }
-
     public boolean isDownload() {
         return true;
     }
@@ -669,6 +751,7 @@ public class MapsforgeMapView extends BaseMapView {
     public void dispose() {
         getMapManager().getDisplayedMapModel().removeChangeListener(displayedMapListener);
         getMapManager().getAppliedThemeModel().removeChangeListener(appliedThemeListener);
+        preferencesModel.getThemeStyleModel().getAppliedStyleModel().removeChangeListener(appliedThemeStyleListener);
         mapViewCallback.getTileServerMapManager().getAppliedOverlaysModel().removeTableModelListener(appliedOverlayListener);
 
         positionsModel.removeTableModelListener(positionsModelListener);
@@ -1283,7 +1366,7 @@ public class MapsforgeMapView extends BaseMapView {
             switch (e.getType()) {
                 case INSERT, DELETE -> updateDecoupler.handleUpdate(e.getType(), e.getFirstRow(), e.getLastRow());
                 case UPDATE -> {
-                    if (positionsModel.isContinousRange())
+                    if (positionsModel.isContinousRangeOperation())
                         return;
                     if (!(e.getColumn() == DESCRIPTION_COLUMN_INDEX ||
                             e.getColumn() == LONGITUDE_COLUMN_INDEX ||
@@ -1358,6 +1441,12 @@ public class MapsforgeMapView extends BaseMapView {
     }
 
     private class AppliedThemeListener implements ChangeListener {
+        public void stateChanged(ChangeEvent e) {
+            handleMapAndThemeUpdate(false, false);
+        }
+    }
+
+    private class AppliedThemeStyleListener implements ChangeListener {
         public void stateChanged(ChangeEvent e) {
             handleMapAndThemeUpdate(false, false);
         }

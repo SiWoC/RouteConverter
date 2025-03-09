@@ -22,7 +22,6 @@ package slash.navigation.converter.gui.actions;
 
 import slash.navigation.converter.gui.RouteConverter;
 import slash.navigation.converter.gui.dialogs.LoginDialog;
-import slash.navigation.converter.gui.dialogs.OptionsDialog;
 import slash.navigation.gui.SimpleDialog;
 import slash.navigation.gui.actions.SingletonDialogAction;
 
